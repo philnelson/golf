@@ -4,6 +4,8 @@ function love.load()
 
 	love.graphics.setDefaultFilter("nearest", "nearest", 0)
 
+	config = {ballSpeed = 7}
+
 	screen = "hole"
 
 	screenWidth = love.graphics.getWidth()
@@ -26,7 +28,7 @@ function love.load()
 	tiles[#tiles+1] = {name="trees"}
 	tiles[#tiles+1] = {name="sand"}
 
-	game_state = { current_tool = 1, camera = {x=1, y=1}, handedness = "right"}
+	game_state = { current_tool = 1, camera = {x=1, y=1}, handedness = "right", mode = "make", swinging=false, club = 1}
 
 	tree_tile = love.graphics.newImage("graphics/forest.png")
 
@@ -44,16 +46,24 @@ function love.load()
 	debug_messages = {}
 	add_debug_message("Debug initialized",5)
 
+	strokes = {}
+	clubs = {}
+	balls = {}
+	clubs[#clubs+1] = {name="driver", angle=9.0}
+	clubs[#clubs+1] = {name="4 iron", angle=25.0}
+	clubs[#clubs+1] = {name="wedge", angle=45.0}
+	clubs[#clubs+1] = {name="putter", angle=0.0}
 
 	set_up_map()
-
 end
 
 function love.draw()
 
 	draw_map()
 	draw_hazards()
-	draw_ball()
+	draw_balls()
+	draw_hole()
+	draw_ui()
 	draw_debug_messages()
 	draw_mouse()
 
@@ -61,14 +71,42 @@ end
 
 function love.update(dt)
 	if primary_mouse_down then
-		place_tile(game_state.current_tool)
+		if game_state.mode == "make" then
+			place_tile(game_state.current_tool)
+		end
 	end
+
+	if game_state.swinging == true then
+		
+	end
+
+	for i,v in ipairs(balls) do
+
+		if v.active == true then
+			if strokes[#strokes].x < v.x then
+				v.x = v.x + (v.dx * dt)
+			end
+			
+			if strokes[#strokes].x > v.x then
+				v.x = v.x - (v.dx * dt)
+			end
+
+			if strokes[#strokes].y < v.y then
+				v.y = v.y - (v.dy * dt)
+			end
+
+			if strokes[#strokes].y > v.y then
+				v.y = v.y + (v.dy * dt)
+			end
+		end
+	end
+
+	love.timer.sleep(dt/2)
 end
 
 function love.mousepressed(x, y, button, istouch)
 	if screen == "hole" then
 		if button == 1 then
-
 			primary_mouse_down = true
 		end
 		if button == 2 then
@@ -82,6 +120,12 @@ function love.mousereleased(x, y, button, istouch)
 
 	if button == 1 then
 		primary_mouse_down = false
+		if game_state.mode == "play" then
+	    	if game_state.swinging == false then
+	    		start_stroke()
+	    		end_stroke()
+	    	end
+		end
 	end
 
 	if button == 2 then
@@ -90,33 +134,61 @@ function love.mousereleased(x, y, button, istouch)
 end
 
 function love.keypressed(key)
-	if key == "1" then
-		game_state.current_tool = 1
-	end
+	if game_state.mode == "make" then
+		if key == "1" then
+			game_state.current_tool = 1
+		end
 
-	if key == "2" then
-		game_state.current_tool = 2
-	end
+		if key == "2" then
+			game_state.current_tool = 2
+		end
 
-	if key == "3" then
-		game_state.current_tool = 3
-	end
+		if key == "3" then
+			game_state.current_tool = 3
+		end
 
-	if key == "4" then
-		game_state.current_tool = 4
-	end
+		if key == "4" then
+			game_state.current_tool = 4
+		end
 
-	if key == "5" then
-		game_state.current_tool = 5
-	end
+		if key == "5" then
+			game_state.current_tool = 5
+		end
 
-	if key == "6" then
-		game_state.current_tool = 6
-	end
+		if key == "6" then
+			game_state.current_tool = 6
+		end
 
-	if key == "p" then
-		check_map_playability()
+		if key == "p" then
+			if check_map_playability() == true then
+				start_hole()
+			end
+		end
 	end
+end
+
+function start_stroke()
+	game_state.swinging = true
+end
+
+function end_stroke()
+	game_state.swinging = false
+
+	local mouse_x, mouse_y = get_map_coordinates_from_mouse(love.mouse.getX(), love.mouse.getY())
+
+	launch_ball(strokes[#strokes].x, strokes[#strokes].y, mouse_x, mouse_y)
+end
+
+function launch_ball(from_x, from_y, to_x, to_y)
+	balls[1].active = true
+	add_stroke(to_x, to_y, "stroke")
+end
+
+function draw_ui()
+	r, g, b, a = love.graphics.getColor()
+	love.graphics.setColor(255, 255, 255, 255)
+	love.graphics.print("Current tool: " .. tiles[game_state.current_tool].name, 10, 610)
+	love.graphics.setColor(r, g, b, a)
 end
 
 function add_debug_message(text, age)
@@ -169,7 +241,7 @@ function set_up_map()
         hazards[x] = {}
        for y=1, map_h do
           map[x][y] = {elevation=0, type = 1}
-          hazards[x][y] = {type = 1}
+          hazards[x][y] = {type = 0}
        end
     end
 
@@ -205,10 +277,10 @@ function draw_map()
 
 	        elseif map[x][y].type == 4 then
 	            -- tee
-	            love.graphics.setColor(255, 255, 255, 255)
+	            love.graphics.setColor(72, 97, 72, 255)
 	            love.graphics.rectangle( 'fill', screen_x, screen_y,  tile_w, tile_h)
 	        elseif map[x][y].type == 6 then
-	            -- tee
+	            -- sand
 	            love.graphics.setColor(234, 215, 121, 255)
 	            love.graphics.rectangle( 'fill', screen_x, screen_y,  tile_w, tile_h)
 	        end
@@ -218,10 +290,6 @@ function draw_map()
         end
 
     end
-
-end
-
-function draw_ball()
 
 end
 
@@ -249,7 +317,53 @@ function draw_hazards()
 end
 
 function draw_balls()
+	if game_state.mode == "play" then
+		r, g, b, a = love.graphics.getColor()
 
+		for i,v in ipairs(balls) do
+			local x,y = calculate_screen_position_from_map_coordinates(v.x,v.y)
+
+			--add_debug_message(x .. "," .. y,5)
+			x = x+(tile_h/2)
+			y = y+(tile_w/2)
+
+			love.graphics.setColor(255, 255, 255, 255)
+			love.graphics.rectangle( 'fill', x, y,  3, 3)
+			love.graphics.setColor(0, 0, 0, 255)
+			love.graphics.rectangle( 'fill', x+3, y,  1, 1)
+			love.graphics.rectangle( 'fill', x+3, y+3,  1, 1)
+			love.graphics.rectangle( 'fill', x, y+3,  1, 1)
+			love.graphics.setColor(r, g, b, a)
+		end
+	end
+end
+
+
+function draw_hole()
+
+	local has_green = false
+
+	for x=1, map_w do
+		for y=1, map_h do
+			if map[x][y].type == 3 then
+				has_green = true
+				hole_x = x
+				hole_y = y
+			end
+		end
+    end
+
+	if has_green == true then
+		local x,y = calculate_screen_position_from_map_coordinates(hole_x,hole_y)
+
+		--add_debug_message(x .. "," .. y,5)
+		x = x+(tile_h/2)
+		y = y+(tile_w/2)
+
+		love.graphics.setColor(0, 0, 0, 255)
+		love.graphics.rectangle( 'fill', x, y,  3, 3)
+		love.graphics.setColor(r, g, b, a)
+	end
 end
 
 function place_tile(tile)
@@ -289,10 +403,6 @@ function place_tile(tile)
 	end
 end
 
-function draw_camera()
-
-end
-
 function scale_numbers(subject, old_min, old_max, new_min, new_max)
 	OldRange = (old_max - old_min)
 	NewRange = (new_max - new_min)
@@ -322,17 +432,42 @@ function draw_debug_messages()
 end
 
 function start_hole()
+	add_debug_message("Starting hole...", 5)
 	strokes = {}
 
+	-- Find the tee
 	for x=1, map_w do
         for y=1, map_h do
         	if map[x][y].type == 4 then
-        		start_x = get_map_coordinates_from_mouse
+        		start_x = x
+        		start_y = y
         	end
         end
     end
 
-	strokes[#strokes+1] = {0, 0, 0, 0, type = "tee"}
+    -- Find the green
+    for x=1, map_w do
+        for y=1, map_h do
+        	if map[x][y].type == 3 then
+        		hole_x = x
+        		hole_y = y
+        	end
+        end
+    end
+
+    hole_data['hole_x'] = hole_x
+    hole_data['hole_y'] = hole_y
+
+    balls[#balls+1] = {active = false, x=start_x,y=start_y,dx=config.ballSpeed * math.cos(clubs[game_state.club].angle),dy=config.ballSpeed * math.sin(clubs[game_state.club].angle)}
+	add_stroke(start_x, start_y, "tee")
+	game_state.mode = "play"
+
+	add_debug_message("Started hole.", 5)
+end
+
+function add_stroke(x,y,reason)
+	add_debug_message("Stroke: " .. x .. ", " .. y, 5)
+	strokes[#strokes+1] = {x=x, y=y, type=reason}
 end
 
 function calculate_map_position_from_screen_coordinates(x,y)
@@ -375,5 +510,16 @@ function draw_mouse()
 
 	mouse_map_x, mouse_map_y = calculate_map_position_from_screen_coordinates(mouse_x, mouse_y)
 
-    love.graphics.rectangle( 'fill', mouse_map_x, mouse_map_y,  tile_w, tile_h)
+	if(game_state.mode == "make") then
+    	love.graphics.rectangle( 'fill', mouse_map_x, mouse_map_y,  tile_w, tile_h)
+    end
+
+    if(game_state.mode == "play") then
+    	local screen_x, screen_y = calculate_screen_position_from_map_coordinates(strokes[#strokes].x, strokes[#strokes].y)
+
+    	screen_x = screen_x+(tile_h/2)
+		screen_y = screen_y+(tile_w/2)
+    	love.graphics.line(screen_x, screen_y, mouse_x, mouse_y)
+    	love.graphics.circle("fill", mouse_x, mouse_y, 20, 12)
+    end
 end
