@@ -17,6 +17,8 @@ function love.load()
 
 	hole_data = {}
 
+	-- A note about game scale: Each tile is about 50 yards which is not how it works in real life but
+
 	hole_data['name'] = "Turd"
 
 	tiles = {}
@@ -28,7 +30,7 @@ function love.load()
 	tiles[#tiles+1] = {name="trees"}
 	tiles[#tiles+1] = {name="sand"}
 
-	game_state = { current_tool = 1, camera = {x=1, y=1}, handedness = "right", mode = "make", swinging=false, club = 1}
+	game_state = { current_tool = 1, camera = {x=1, y=1}, handedness = "right", mode = "make", swinging=false, club = 1, power=4}
 
 	tree_tile = love.graphics.newImage("graphics/forest.png")
 
@@ -49,10 +51,10 @@ function love.load()
 	strokes = {}
 	clubs = {}
 	balls = {}
-	clubs[#clubs+1] = {name="driver", angle=9.0}
-	clubs[#clubs+1] = {name="4 iron", angle=25.0}
-	clubs[#clubs+1] = {name="wedge", angle=45.0}
-	clubs[#clubs+1] = {name="putter", angle=0.0}
+	clubs[#clubs+1] = {name="driver", angle=9.0, length=1}
+	clubs[#clubs+1] = {name="4 iron", angle=25.0, length=0.7}
+	clubs[#clubs+1] = {name="wedge", angle=45.0, length=0.3}
+	clubs[#clubs+1] = {name="putter", angle=0.0, length=0.2}
 
 	set_up_map()
 end
@@ -76,13 +78,12 @@ function love.update(dt)
 		end
 	end
 
-	if game_state.swinging == true then
-		
-	end
-
 	for i,v in ipairs(balls) do
-
 		if v.active == true then
+
+			distance_x = math.abs(strokes[#strokes].x - v.x)
+			distance_y = math.abs(strokes[#strokes].y - v.y)
+
 			if strokes[#strokes].x < v.x then
 				v.x = v.x + (v.dx * dt)
 			end
@@ -110,21 +111,19 @@ function love.mousepressed(x, y, button, istouch)
 			primary_mouse_down = true
 		end
 		if button == 2 then
-
 			secondary_mouse_down = true
 		end
 	end
 end
 
 function love.mousereleased(x, y, button, istouch)
-
 	if button == 1 then
 		primary_mouse_down = false
 		if game_state.mode == "play" then
-	    	if game_state.swinging == false then
-	    		start_stroke()
-	    		end_stroke()
-	    	end
+			if game_state.swinging == false then
+				start_stroke()
+				end_stroke()
+			end
 		end
 	end
 
@@ -165,6 +164,24 @@ function love.keypressed(key)
 			end
 		end
 	end
+
+	if game_state.mode == "play" then
+		if key == "1" then
+			game_state.club = 1
+		end
+
+		if key == "2" then
+			game_state.club = 2
+		end
+
+		if key == "3" then
+			game_state.club = 3
+		end
+
+		if key == "4" then
+			game_state.club = 4
+		end
+	end
 end
 
 function start_stroke()
@@ -188,6 +205,7 @@ function draw_ui()
 	r, g, b, a = love.graphics.getColor()
 	love.graphics.setColor(255, 255, 255, 255)
 	love.graphics.print("Current tool: " .. tiles[game_state.current_tool].name, 10, 610)
+	love.graphics.print("Current club: " .. clubs[game_state.club].name, 10, 630)
 	love.graphics.setColor(r, g, b, a)
 end
 
@@ -212,8 +230,8 @@ function check_map_playability()
     end
 
     if has_hole == true and has_tee == true then
-    	add_debug_message("Hole is playable.",5)
-    	return true
+		add_debug_message("Hole is playable.",5)
+		return true
     end
 
     add_debug_message("Hole is not playable.",5)
@@ -256,10 +274,10 @@ function draw_map()
 	for x=1, map_w do
         for y=1, map_h do
 
-        	--current_y_pos = ((y*tile_h)+map_y_offset)-tile_h
-        	--current_x_pos = ((x*tile_w)+map_x_offset)-tile_w
+			--current_y_pos = ((y*tile_h)+map_y_offset)-tile_h
+			--current_x_pos = ((x*tile_w)+map_x_offset)-tile_w
 
-        	screen_x, screen_y = calculate_screen_position_from_map_coordinates(x,y)
+			screen_x, screen_y = calculate_screen_position_from_map_coordinates(x,y)
 
 	        if map[x][y].type == 1 then
 	            -- rough
@@ -298,10 +316,10 @@ function draw_hazards()
 	for x=1, map_w do
         for y=1, map_h do
 
-        	--current_y_pos = ((y*tile_h)+map_y_offset)-tile_h
-        	--current_x_pos = ((x*tile_w)+map_x_offset)-tile_w
+			--current_y_pos = ((y*tile_h)+map_y_offset)-tile_h
+			--current_x_pos = ((x*tile_w)+map_x_offset)-tile_w
 
-        	screen_x, screen_y = calculate_screen_position_from_map_coordinates(x,y)
+			screen_x, screen_y = calculate_screen_position_from_map_coordinates(x,y)
 
 	        if hazards[x][y].type == 5 then
 	            -- tee
@@ -324,15 +342,15 @@ function draw_balls()
 			local x,y = calculate_screen_position_from_map_coordinates(v.x,v.y)
 
 			--add_debug_message(x .. "," .. y,5)
-			x = x+(tile_h/2)
-			y = y+(tile_w/2)
+			x = x+(tile_h/2)-(2*balls[1].height)
+			y = y+(tile_w/2)-(2*balls[1].height)
 
 			love.graphics.setColor(255, 255, 255, 255)
-			love.graphics.rectangle( 'fill', x, y,  3, 3)
+			love.graphics.rectangle( 'fill', x, y,  (4*balls[1].height), (4*balls[1].height))
 			love.graphics.setColor(0, 0, 0, 255)
-			love.graphics.rectangle( 'fill', x+3, y,  1, 1)
-			love.graphics.rectangle( 'fill', x+3, y+3,  1, 1)
-			love.graphics.rectangle( 'fill', x, y+3,  1, 1)
+			love.graphics.rectangle( 'fill', x+((4*balls[1].height)), y,  1, 1)
+			love.graphics.rectangle( 'fill', x+((4*balls[1].height)), y+((4*balls[1].height)),  1, 1)
+			love.graphics.rectangle( 'fill', x, y+((4*balls[1].height)),  1, 1)
 			love.graphics.setColor(r, g, b, a)
 		end
 	end
@@ -438,27 +456,27 @@ function start_hole()
 	-- Find the tee
 	for x=1, map_w do
         for y=1, map_h do
-        	if map[x][y].type == 4 then
-        		start_x = x
-        		start_y = y
-        	end
+			if map[x][y].type == 4 then
+				start_x = x
+				start_y = y
+			end
         end
     end
 
     -- Find the green
     for x=1, map_w do
-        for y=1, map_h do
-        	if map[x][y].type == 3 then
-        		hole_x = x
-        		hole_y = y
-        	end
+		for y=1, map_h do
+			if map[x][y].type == 3 then
+				hole_x = x
+				hole_y = y
+			end
         end
     end
 
     hole_data['hole_x'] = hole_x
     hole_data['hole_y'] = hole_y
 
-    balls[#balls+1] = {active = false, x=start_x,y=start_y,dx=config.ballSpeed * math.cos(clubs[game_state.club].angle),dy=config.ballSpeed * math.sin(clubs[game_state.club].angle)}
+    balls[#balls+1] = {height = 1, active = false, x=start_x,y=start_y,dx=config.ballSpeed * math.cos(clubs[game_state.club].angle),dy=config.ballSpeed * math.sin(clubs[game_state.club].angle)}
 	add_stroke(start_x, start_y, "tee")
 	game_state.mode = "play"
 
@@ -511,15 +529,42 @@ function draw_mouse()
 	mouse_map_x, mouse_map_y = calculate_map_position_from_screen_coordinates(mouse_x, mouse_y)
 
 	if(game_state.mode == "make") then
-    	love.graphics.rectangle( 'fill', mouse_map_x, mouse_map_y,  tile_w, tile_h)
+		love.graphics.rectangle( 'fill', mouse_map_x, mouse_map_y,  tile_w, tile_h)
     end
 
     if(game_state.mode == "play") then
-    	local screen_x, screen_y = calculate_screen_position_from_map_coordinates(strokes[#strokes].x, strokes[#strokes].y)
 
-    	screen_x = screen_x+(tile_h/2)
+		local screen_x, screen_y = calculate_screen_position_from_map_coordinates(strokes[#strokes].x, strokes[#strokes].y)
+
+		screen_x = screen_x+(tile_h/2)
 		screen_y = screen_y+(tile_w/2)
-    	love.graphics.line(screen_x, screen_y, mouse_x, mouse_y)
-    	love.graphics.circle("fill", mouse_x, mouse_y, 20, 12)
+
+		shot_potential = (game_state.power * clubs[game_state.club].length)
+
+		xup_diff = screen_x + (shot_potential*tile_h)
+		yup_diff = screen_y + (shot_potential*tile_w)
+
+		xdown_diff = screen_x - (shot_potential*tile_h)
+		ydown_diff = screen_y - (shot_potential*tile_w)
+
+		if mouse_x > xup_diff then
+			mouse_x = xup_diff
+		end
+
+		if mouse_x < xdown_diff then
+			mouse_x = xdown_diff
+		end
+
+		if mouse_y > yup_diff then
+			mouse_y = yup_diff
+		end
+
+		if mouse_y < ydown_diff then
+			mouse_y = ydown_diff
+		end
+
+		love.graphics.line(screen_x, screen_y, mouse_x, mouse_y)
+		love.graphics.circle("fill", mouse_x, mouse_y, 20, 12)
+		love.graphics.rectangle( 'fill', mouse_map_x, mouse_map_y,  tile_w, tile_h)
     end
 end
